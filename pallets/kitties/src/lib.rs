@@ -2,6 +2,8 @@
 
 pub use pallet::*;
 
+mod migrations;
+
 #[cfg(test)]
 mod mock;
 
@@ -13,19 +15,29 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
-	use frame_support::traits::{Randomness, Currency, ExistenceRequirement};
-	use frame_support::PalletId;
+	use frame_support::{
+		traits::{Currency, ExistenceRequirement, Randomness},
+		PalletId,
+	};
 	use sp_runtime::traits::AccountIdConversion;
 
 	use sp_io::hashing::blake2_128;
+	use crate::migrations;
 
 	pub type KittyId = u32;
-	pub type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+	pub type BalanceOf<T> = 
+		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-	#[derive(Encode, Decode, Clone, Copy, RuntimeDebug, PartialEq, Eq, Default, TypeInfo, MaxEncodedLen)]
-	pub struct Kitty(pub [u8; 16]);
+	#[derive(Encode, Decode, Clone, Debug, TypeInfo, MaxEncodedLen, PartialEq, Eq)]
+	// pub struct Kitty(pub [u8; 16]);
+	pub struct Kitty {
+		pub dna: [u8; 16],
+		pub name: [u8; 4],
+	} 
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	#[pallet::pallet]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -79,18 +91,31 @@ pub mod pallet {
 		AlreadyOwned,
 	}
 
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_runtime_upgrade() -> Weight {
+			migrations::v1::migrate::<T>()
+		}
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {		
 		#[pallet::call_index(0)]
 		#[pallet::weight(10_000)]
-		pub fn creat(origin: OriginFor<T>) -> DispatchResult {
+		pub fn create(origin: OriginFor<T>, name: [u8; 4]) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let kitty_id = Self::get_next_id()?;
-			let kitty = Kitty(Self::random_value(&who));
+			let dna = Self::random_value(&who);
+			let kitty = Kitty { dna, name };
 
 			let price = T::KittyPrice::get();
 			// T::Currency::reserve(&who, price)?;
-			T::Currency::transfer(&who, &Self::get_account_id(), price, ExistenceRequirement::KeepAlive)?;
+			T::Currency::transfer(
+				&who, 
+				&Self::get_account_id(), 
+				price, 
+				ExistenceRequirement::KeepAlive,
+			)?;
 
 			Kitties::<T>::insert(kitty_id, &kitty);
 			KittyOwner::<T>::insert(kitty_id, &who);
@@ -101,23 +126,29 @@ pub mod pallet {
 
 		#[pallet::call_index(1)]
 		#[pallet::weight(10_000)]
-		pub fn breed(origin: OriginFor<T>, kitty_id_1: KittyId,kitty_id_2: KittyId) -> DispatchResult {
+		pub fn breed(
+			origin: OriginFor<T>, 
+			kitty_id_1: KittyId, 
+			kitty_id_2: KittyId, 
+			name: [u8; 4],
+		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			ensure!(kitty_id_1 != kitty_id_2, Error::<T>::SameKittyId);
 
-			ensure!(Kitties::<T>::contains_key(kitty_id_1), Error::<T>::InvalidKittyId);
-			ensure!(Kitties::<T>::contains_key(kitty_id_2), Error::<T>::InvalidKittyId);
-			
-			let kitty_id = Self::get_next_id()?;
-			let kitty_1 = Self::kitties(kitty_id_1).ok_or(Error::<T>::InvalidKittyId)?;
-			let kitty_2 = Self::kitties(kitty_id_2).ok_or(Error::<T>::InvalidKittyId)?;
+			ensure!(kitty_id_1 != kitty_id_2, Error::<T>::SameKittyId);
+			let kitty_1 = Self::kitties(kitty_id_1)
+				.ok_or::<DispatchError>(Error::<T>::InvalidKittyId.into())?;
+			let kitty_2 = Self::kitties(kitty_id_2)
+				.ok_or::<DispatchError>(Error::<T>::InvalidKittyId.into())?;
+
+			let kitty_id = Self::get_next_id().map_err(|_| Error::<T>::InvalidKittyId)?;
 
 			let selector = Self::random_value(&who);
-			let mut data = [0u8; 16];
-			for i in 0..kitty_1.0.len() {
-				data[i] = (kitty_1.0[i] & selector[i]) | (kitty_2.0[i] & !selector[i]);
-			}
-			let kitty = Kitty(data);
+
+			let dna = [0u8; 16];
+			// for i in 0..kitty_1.0.len() {
+			//	 data[i] = (kitty_1.0[i] & selector[i]) | (kitty_2.0[i] & !selector[i]);
+			// }
+			let kitty = Kitty{ dna, name };
 
 			let price = T::KittyPrice::get();
 			// T::Currency::reserve(&who, price)?;
@@ -187,6 +218,8 @@ pub mod pallet {
 			let price = T::KittyPrice::get();
 			// T::Currency::reserve(&who, price)?;
 			// T::Currency::unreserve(&owner, price);
+			T::Currency::transfer(&who, &owner, price, ExistenceRequirement::KeepAlive)?;
+
 
 			<KittyOwner<T>>::insert(kitty_id, &who);
 			<KittyOnSale<T>>::remove(kitty_id);

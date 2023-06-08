@@ -4293,6 +4293,8 @@ dependencies = [
  "pallet-aura",
  "pallet-balances",
  "pallet-grandpa",
+ "pallet-insecure-randomness-collective-flip",
+ "pallet-kitties",
  "pallet-sudo",
  "pallet-template",
  "pallet-timestamp",
