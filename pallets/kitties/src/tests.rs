@@ -21,7 +21,7 @@ fn it_works_for_create() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Balances::set_balance(RuntimeOrigin::root(), ACCOUNT_ID, ACCOUNT_BALANCE, 0));
 
-		// 成功创建一个 kitty 的情况
+		// 创建kitty
 		assert_eq!(KittiesModule::next_kitty_id(), KITTY_ID);
 		assert_ok!(KittiesModule::create(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_NAME));
 		assert_eq!(KittiesModule::next_kitty_id(), KITTY_ID + 1);
@@ -58,7 +58,7 @@ fn it_works_for_breed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Balances::set_balance(RuntimeOrigin::root(), ACCOUNT_ID, ACCOUNT_BALANCE, 0));
 
-		// 当两个 kitty_id 相同时, breed 失败
+		// 两个 kitty_id 相同breed 失败
 		assert_noop!(
 			KittiesModule::breed(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_ID, KITTY_ID, KITTY_NAME),
 			Error::<Test>::SamedKittyId
@@ -66,7 +66,7 @@ fn it_works_for_breed() {
 		assert_eq!(Balances::free_balance(ACCOUNT_ID), ACCOUNT_BALANCE);
 		assert_eq!(Balances::free_balance(*PALLET_ACCOUNT_ID), PALLET_BALANCE);
 
-		// 当两个 kitty_id 不同, 但 kitty 不存在时, breed 失败
+		// 两个 kitty_id 不同, 但 kitty 不存在时, breed 失败
 		assert_noop!(
 			KittiesModule::breed(
 				RuntimeOrigin::signed(ACCOUNT_ID),
@@ -165,13 +165,13 @@ fn it_works_for_sale() {
 			Balances::free_balance(*PALLET_ACCOUNT_ID),
 			PALLET_BALANCE + EXISTENTIAL_DEPOSIT * 10
 		);
-		// 当所有者不正确时失败
+		// 当拥有者不正确时失败
 		assert_noop!(
 			KittiesModule::sale(RuntimeOrigin::signed(ACCOUNT_ID2), KITTY_ID),
 			Error::<Test>::NotOwner
 		);
 
-		// 所有者正确，成功
+		// 拥有者正确，成功
 		assert_ok!(KittiesModule::sale(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_ID));
 		assert!(KittiesModule::kitty_on_sale(KITTY_ID).is_some());
 		System::assert_last_event(Event::KittyOnSale { who: ACCOUNT_ID, kitty_id: 0 }.into());
@@ -200,7 +200,7 @@ fn it_works_for_buy() {
 		assert_ok!(KittiesModule::create(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_NAME));
 		assert_eq!(Balances::free_balance(ACCOUNT_ID), ACCOUNT_BALANCE - EXISTENTIAL_DEPOSIT * 10);
 
-		// 当购买者与所有者相同时失败
+		// 当购买者与拥有者相同时失败
 		assert_noop!(
 			KittiesModule::buy(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_ID),
 			Error::<Test>::AlreadyOwned
