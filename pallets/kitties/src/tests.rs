@@ -7,8 +7,8 @@ const KITTY_ID: u32 = 0;
 const KITTY_NAME: [u8; 8] = *b"test1234";
 const ACCOUNT_ID: u64 = 1;
 const ACCOUNT_ID2: u64 = 2;
-const ACCOUNT_BALANCE: u128 = 122000;
-const ACCOUNT_BALANCE2: u128 = 233000;
+const ACCOUNT_BALANCE: u128 = 112000;
+const ACCOUNT_BALANCE2: u128 = 333000;
 
 static PALLET_ACCOUNT_ID: Lazy<u64> = Lazy::new(|| {
 	KittyPalletId::get().into_account_truncating()
@@ -20,8 +20,6 @@ const PALLET_BALANCE: u128 = 0;
 fn it_works_for_create() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Balances::set_balance(RuntimeOrigin::root(), ACCOUNT_ID, ACCOUNT_BALANCE, 0));
-
-		// 创建kitty
 		assert_eq!(KittiesModule::next_kitty_id(), KITTY_ID);
 		assert_ok!(KittiesModule::create(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_NAME));
 		assert_eq!(KittiesModule::next_kitty_id(), KITTY_ID + 1);
@@ -44,7 +42,6 @@ fn it_works_for_create() {
 			Event::KittyCreated { who: ACCOUNT_ID, kitty_id: KITTY_ID, kitty }.into(),
 		);
 
-		// 当 kitty_id 达到阈值，创建失败
 		crate::NextKittyId::<Test>::set(crate::KittyId::max_value());
 		assert_noop!(
 			KittiesModule::create(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_NAME),
@@ -58,7 +55,6 @@ fn it_works_for_breed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Balances::set_balance(RuntimeOrigin::root(), ACCOUNT_ID, ACCOUNT_BALANCE, 0));
 
-		// 两个 kitty_id 相同breed 失败
 		assert_noop!(
 			KittiesModule::breed(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_ID, KITTY_ID, KITTY_NAME),
 			Error::<Test>::SamedKittyId
@@ -66,7 +62,6 @@ fn it_works_for_breed() {
 		assert_eq!(Balances::free_balance(ACCOUNT_ID), ACCOUNT_BALANCE);
 		assert_eq!(Balances::free_balance(*PALLET_ACCOUNT_ID), PALLET_BALANCE);
 
-		// 两个 kitty_id 不同, 但 kitty 不存在时, breed 失败
 		assert_noop!(
 			KittiesModule::breed(
 				RuntimeOrigin::signed(ACCOUNT_ID),
@@ -79,7 +74,6 @@ fn it_works_for_breed() {
 		assert_eq!(Balances::free_balance(ACCOUNT_ID), ACCOUNT_BALANCE);
 		assert_eq!(Balances::free_balance(*PALLET_ACCOUNT_ID), PALLET_BALANCE);
 
-		// 当两个 kitty_id 不同, kitty 存在时, breed 成功
 		assert_ok!(KittiesModule::create(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_NAME));
 		assert_ok!(KittiesModule::create(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_NAME));
 		assert_eq!(KittiesModule::next_kitty_id(), KITTY_ID + 2);
@@ -123,7 +117,6 @@ fn it_works_for_breed() {
 #[test]
 fn it_works_for_transfer() {
 	new_test_ext().execute_with(|| {
-		// 账号充值
 		assert_ok!(Balances::set_balance(RuntimeOrigin::root(), ACCOUNT_ID, ACCOUNT_BALANCE, 0));
 
 		assert_ok!(KittiesModule::create(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_NAME));
@@ -150,10 +143,9 @@ fn it_works_for_transfer() {
 #[test]
 fn it_works_for_sale() {
 	new_test_ext().execute_with(|| {
-		// 账户充值
+
 		assert_ok!(Balances::set_balance(RuntimeOrigin::root(), ACCOUNT_ID, ACCOUNT_BALANCE, 0));
 
-		// 当不存在 kitty 时失败
 		assert_noop!(
 			KittiesModule::sale(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_ID),
 			Error::<Test>::InvalidKittyId
@@ -165,18 +157,16 @@ fn it_works_for_sale() {
 			Balances::free_balance(*PALLET_ACCOUNT_ID),
 			PALLET_BALANCE + EXISTENTIAL_DEPOSIT * 10
 		);
-		// 当拥有者不正确时失败
+
 		assert_noop!(
 			KittiesModule::sale(RuntimeOrigin::signed(ACCOUNT_ID2), KITTY_ID),
 			Error::<Test>::NotOwner
 		);
 
-		// 拥有者正确，成功
 		assert_ok!(KittiesModule::sale(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_ID));
 		assert!(KittiesModule::kitty_on_sale(KITTY_ID).is_some());
 		System::assert_last_event(Event::KittyOnSale { who: ACCOUNT_ID, kitty_id: 0 }.into());
 
-		// 重复 sale, 失败
 		assert_noop!(
 			KittiesModule::sale(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_ID),
 			Error::<Test>::AlreadyOnSale
@@ -187,11 +177,10 @@ fn it_works_for_sale() {
 #[test]
 fn it_works_for_buy() {
 	new_test_ext().execute_with(|| {
-		// 账户充值
+
 		assert_ok!(Balances::set_balance(RuntimeOrigin::root(), ACCOUNT_ID, ACCOUNT_BALANCE, 0));
 		assert_ok!(Balances::set_balance(RuntimeOrigin::root(), ACCOUNT_ID2, ACCOUNT_BALANCE2, 0));
 
-		// 当不存在 kitty 时失败
 		assert_noop!(
 			KittiesModule::buy(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_ID),
 			Error::<Test>::InvalidKittyId
@@ -200,19 +189,16 @@ fn it_works_for_buy() {
 		assert_ok!(KittiesModule::create(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_NAME));
 		assert_eq!(Balances::free_balance(ACCOUNT_ID), ACCOUNT_BALANCE - EXISTENTIAL_DEPOSIT * 10);
 
-		// 当购买者与拥有者相同时失败
 		assert_noop!(
 			KittiesModule::buy(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_ID),
 			Error::<Test>::AlreadyOwned
 		);
 
-		// 当没有上架时，失败
 		assert_noop!(
 			KittiesModule::buy(RuntimeOrigin::signed(ACCOUNT_ID2), KITTY_ID),
 			Error::<Test>::NotOnSale
 		);
 
-		// 上述失败条件不存在时，成功
 		assert_ok!(KittiesModule::sale(RuntimeOrigin::signed(ACCOUNT_ID), KITTY_ID));
 		assert_ok!(KittiesModule::buy(RuntimeOrigin::signed(ACCOUNT_ID2), KITTY_ID));
 		assert!(KittiesModule::kitty_on_sale(KITTY_ID).is_none());
