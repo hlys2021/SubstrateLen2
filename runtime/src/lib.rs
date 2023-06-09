@@ -45,9 +45,13 @@ use pallet_transaction_payment::{ConstFeeMultiplier, CurrencyAdapter, Multiplier
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
+use pallet_insecure_randomness_collective_flip;
 
 /// Import the template pallet.
 pub use pallet_template;
+
+/// Import the kitties pallet.
+pub use pallet_kitties;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -104,7 +108,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 300,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -269,16 +273,17 @@ impl pallet_template::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 }
 
-impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
+impl pallet_insecure_randomness_collective_flip::Config for Runtime {
+}
 
 parameter_types! {
-	pub KittyPalletId: PalletId = PalletId(*b"py/kitty"); // 可以接受8 bit的值作为pallet的id
+	pub KittyPalletId: PalletId = PalletId(*b"py/kitty");
 	pub KittyPrice: Balance = EXISTENTIAL_DEPOSIT * 10;
 }
 
 impl pallet_kitties::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type Randomness = Randomness;
+	type Randomness = RandomnessModule;
 	type Currency = Balances;
 	type KittyPrice = KittyPrice;
 	type PalletId = KittyPalletId;
@@ -301,6 +306,8 @@ construct_runtime!(
 		Sudo: pallet_sudo,
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template,
+		RandomnessModule: pallet_insecure_randomness_collective_flip,
+		KittiesModule: pallet_kitties,
 	}
 );
 
