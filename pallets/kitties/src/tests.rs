@@ -92,13 +92,10 @@ fn it_works_for_transfer() {
 		assert_eq!(KittiesModule::kitty_owner(kitty_id), Some(account_id));
 
 	})
-
 }
-
 
 #[cfg(test)]
 mod tests {
-	
 	impl_outer_origin! {
 		pub enum Origin for Test {}
 	}
